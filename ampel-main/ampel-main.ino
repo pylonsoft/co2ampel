@@ -202,15 +202,22 @@ void makewifi() {
     pixels.setPixelColor(i, 0, 255, 0);
     pixels.show();
   }
+  float tempOffset = airSensor.getTemperatureOffset();
+  char tempOffsetString[20];
+  snprintf(tempOffsetString, 20, "%f", tempOffset);
   WiFiManagerParameter http_url("URL", "URL (kein HTTPS)", sensorurl, 200);
   WiFiManagerParameter mqtt_hostname("MQTTserver", "MQTT Hostname", mqtt_server, 50);
   WiFiManagerParameter mqtt_path("MQTTtopic", "MQTT Publish Topic", mqtt_topic, 50);
+  WiFiManagerParameter delimiter("<hr><br><h2>Sensor</h2>");
+  WiFiManagerParameter sensor_offset("TempOffset", "Temperatur-Offset", tempOffsetString, 8);
   WiFiManager wifiManager;
   // Set configuration save notify callback
   wifiManager.setSaveConfigCallback(saveConfigCallback);
   wifiManager.addParameter(&http_url);
   wifiManager.addParameter(&mqtt_hostname);
   wifiManager.addParameter(&mqtt_path);
+  wifiManager.addParameter(&delimiter);
+  wifiManager.addParameter(&sensor_offset);
   //wifiManager.resetSettings();
   wifiManager.setTimeout(120);
   wifiManager.autoConnect("co2ampel");
@@ -226,6 +233,7 @@ void makewifi() {
   strcpy(sensorurl, http_url.getValue());
   strcpy(mqtt_server, mqtt_hostname.getValue());
   strcpy(mqtt_topic, mqtt_path.getValue());
+  tempOffset = atof(sensor_offset.getValue());
   // Save the custom parameters to FS
   if (shouldSaveConfig) {
     Serial.println("Saving configuration");
@@ -240,6 +248,9 @@ void makewifi() {
     if (!configFile) {
       Serial.println("Failed to open config file for writing");
     }
+    Serial.print("Set sensor temperatur offset to ");
+    Serial.println(tempOffset);
+    airSensor.setTemperatureOffset(tempOffset);
 
     serializeJson(json, Serial);
     serializeJson(json, configFile);
