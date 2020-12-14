@@ -107,13 +107,13 @@ void setup() {
         std::unique_ptr<char[]> buf(new char[size]);
 
         configFile.readBytes(buf.get(), size);
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        json.printTo(Serial);
-        if (json.success()) {
+        DynamicJsonDocument json(1024);
+        DeserializationError error = deserializeJson(json, buf.get());
+        serializeJson(json, Serial);
+        if (!error) {
           Serial.println("\nparsed json");
-          strcpy(sensorurl, json["sensorurl"]);
-          sensorint = jsonBuffer.size();
+          strncpy(sensorurl, json["sensorurl"], 200);
+          sensorint = strlen(sensorurl);
         } else {
           Serial.println("Failed to load JSON configuration");
         }
@@ -201,8 +201,7 @@ void makewifi() {
   // Save the custom parameters to FS
   if (shouldSaveConfig) {
     Serial.println("Saving configuration");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
+    DynamicJsonDocument json(1024);;
     json["sensorurl"] = sensorurl;
 
     File configFile = SPIFFS.open("/config.json", "w");
@@ -210,8 +209,8 @@ void makewifi() {
       Serial.println("Failed to open config file for writing");
     }
 
-    json.printTo(Serial);
-    json.printTo(configFile);
+    serializeJson(json, Serial);
+    serializeJson(json, configFile);
     configFile.close();
     // End save
   }
