@@ -41,6 +41,7 @@ char mqtt_topic[50] = "/co2ampel/status";
 uint32_t mqtt_last_reconnect_attempt;
 bool hasWiFi = false;
 unsigned long startMillis = 560000; //900000
+unsigned long startMqttMillis = 0;
 unsigned long period = 600000;
 
 // Flag for saving data
@@ -80,7 +81,7 @@ void setup() {
   Serial.println("Firmware release: 4.4-dev");
   Serial.println("Please report issues at https://github.com/bastelgarage/co2ampel/issues");
   ESP.wdtDisable();
-  Serial.println("Disabling software watchdog timer");
+  Serial.println("Disabled software watchdog timer");
   delay(1000);
   Wire.begin();
   if (airSensor.begin(Wire, false) == false) // Disable the auto-calibration
@@ -122,6 +123,7 @@ void setup() {
         if (!error) {
           Serial.println("\nparsed json");
           strncpy(sensorurl, json["sensorurl"], 200);
+          period = atoi(json["period"]) * 1000;
           sensorint = strlen(sensorurl);
           if (json["period"]) {
             period = atoi(json["period"]) * 1000;

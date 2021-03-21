@@ -26,7 +26,8 @@ void checkmenu() {
         menuselect = 0; // Reset menu
         makewifi();
         break;
-      case 3:
+      case 3: // The button was pressed three times, reset
+        menuselect = 0; // Reset menu
         ESP.reset();
         delay(5000);
         break;

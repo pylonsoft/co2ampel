@@ -6,7 +6,7 @@ boolean reconnect() {
 }
 
 void publish_values() {
-  if (millis() - startMillis < period) {
+  if (millis() - startMqttMillis < period) {
 	  return;
   }
   if (strcmp(mqtt_server, "mqtt.example.org") == 0) {
@@ -33,7 +33,7 @@ void publish_values() {
       // publish failed, prepare for a new connection
       mqtt_client.disconnect();
     }
-    startMillis = millis();
+    startMqttMillis = millis();
   }
 }
 
