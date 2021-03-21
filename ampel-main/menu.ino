@@ -26,6 +26,10 @@ void checkmenu() {
         menuselect = 0; // Reset menu
         makewifi();
         break;
+      case 3:
+        ESP.reset();
+        delay(5000);
+        break;
       default:
         menuselect = 0;
         break;

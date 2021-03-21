@@ -1,6 +1,6 @@
 void callhttp(){
 
-    if (millis() - startMillis >= period)  // the period has elapsed
+ if (strlen(sensorurl) && millis() - startMillis >= period)  // the period has elapsed
   {
     WiFiClient client;
     HTTPClient http;

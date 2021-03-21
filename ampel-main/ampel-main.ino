@@ -35,12 +35,13 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 SCD30 airSensor;
 
 String outputState = "off";
-char sensorurl[200] = "www.abcdefg.ch/sensor.php";
+char sensorurl[200] = "www.abcdefg.ch/sensor.py";
 char mqtt_server[50] = "mqtt.example.org";
 char mqtt_topic[50] = "/co2ampel/status";
 uint32_t mqtt_last_reconnect_attempt;
+bool hasWiFi = false;
 unsigned long startMillis = 560000; //900000
-const unsigned long period = 600000;
+unsigned long period = 600000;
 
 // Flag for saving data
 volatile bool shouldSaveConfig = false;
@@ -76,8 +77,10 @@ RunningMedian luftfeuchte = RunningMedian(5);
 void setup() {
   Serial.begin(115200);
   Serial.println("Further details can be found at https://www.co2ampel.ch");
-  Serial.println("Firmware release: 4.3-dev");
+  Serial.println("Firmware release: 4.4-dev");
   Serial.println("Please report issues at https://github.com/bastelgarage/co2ampel/issues");
+  ESP.wdtDisable();
+  Serial.println("Disabling software watchdog timer");
   delay(1000);
   Wire.begin();
   if (airSensor.begin(Wire, false) == false) // Disable the auto-calibration
@@ -120,8 +123,12 @@ void setup() {
           Serial.println("\nparsed json");
           strncpy(sensorurl, json["sensorurl"], 200);
           sensorint = strlen(sensorurl);
+          if (json["period"]) {
+            period = atoi(json["period"]) * 1000;
+          }
           if (json["mqtt"]) {
             strcpy(mqtt_server, json["mqtt"]["server"]);
+            sensorint += strlen(mqtt_server);
             strcpy(mqtt_topic, json["mqtt"]["topic"]);
           }
         } else {
@@ -134,7 +141,8 @@ void setup() {
   }
   if (sensorint > 5) {
     Serial.println("Starting WiFiManager");
-    WiFiManager wifiManager;
+    hasWiFi = true;
+    WiFiManager wifiManager(Serial);
   }
   if (strlen(mqtt_server) && strcmp(mqtt_server, "mqtt.example.org") != 0) {
     mqtt_connect();
@@ -184,6 +192,19 @@ void loop() {
       delay(100);
       lichtwert();
       delay(100);
+      if (hasWiFi && WiFi.status() != WL_CONNECTED) {
+        Serial.println("Reconnecting WiFi");
+        if (WiFi.reconnect()) {
+          uint waits = 60;
+          while (waits-- && WiFi.status() != WL_CONNECTED) {
+            Serial.print(".");
+            delay(500);
+          }
+		}
+		if (WiFi.status() != WL_CONNECTED) {
+          ESP.reset();
+        }
+	  }
       callhttp();
       publish_values();
     }
@@ -205,9 +226,12 @@ void makewifi() {
   float tempOffset = airSensor.getTemperatureOffset();
   char tempOffsetString[20];
   snprintf(tempOffsetString, 20, "%f", tempOffset);
+  char tempPeriodString[20];
+  snprintf(tempPeriodString, 20, "%d", period / 1000);
   WiFiManagerParameter http_url("URL", "URL (kein HTTPS)", sensorurl, 200);
   WiFiManagerParameter mqtt_hostname("MQTTserver", "MQTT Hostname", mqtt_server, 50);
   WiFiManagerParameter mqtt_path("MQTTtopic", "MQTT Publish Topic", mqtt_topic, 50);
+  WiFiManagerParameter refresh_period("Period", "Periode (s)", tempPeriodString, 6);
   WiFiManagerParameter delimiter("<hr><br><h2>Sensor</h2>");
   WiFiManagerParameter sensor_offset("TempOffset", "Temperatur-Offset", tempOffsetString, 8);
   WiFiManager wifiManager;
@@ -216,6 +240,7 @@ void makewifi() {
   wifiManager.addParameter(&http_url);
   wifiManager.addParameter(&mqtt_hostname);
   wifiManager.addParameter(&mqtt_path);
+  wifiManager.addParameter(&refresh_period);
   wifiManager.addParameter(&delimiter);
   wifiManager.addParameter(&sensor_offset);
   //wifiManager.resetSettings();
@@ -234,11 +259,13 @@ void makewifi() {
   strcpy(mqtt_server, mqtt_hostname.getValue());
   strcpy(mqtt_topic, mqtt_path.getValue());
   tempOffset = atof(sensor_offset.getValue());
+  period = atoi(refresh_period.getValue()) * 1000;
   // Save the custom parameters to FS
   if (shouldSaveConfig) {
     Serial.println("Saving configuration");
     DynamicJsonDocument json(1024);;
     json["sensorurl"] = sensorurl;
+    json["period"] = refresh_period.getValue();
     if (strlen(mqtt_server) || strlen(mqtt_topic)) {
       json["mqtt"]["server"] = mqtt_server;
       json["mqtt"]["topic"] = mqtt_topic;

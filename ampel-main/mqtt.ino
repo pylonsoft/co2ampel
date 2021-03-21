@@ -6,6 +6,9 @@ boolean reconnect() {
 }
 
 void publish_values() {
+  if (millis() - startMillis < period) {
+	  return;
+  }
   if (strcmp(mqtt_server, "mqtt.example.org") == 0) {
 	  Serial.println("MQTT not configured");
 	  return;
@@ -22,11 +25,15 @@ void publish_values() {
     }
   } else {
     // Client connected
-    char buffer[80];
-    snprintf(buffer, 80, "{\"co2\": %f, \"temp\": %f, \"hum\": %f, \"light\": %f}", co2.getMedian(), temperatur.getMedian(), luftfeuchte.getMedian(), licht.getMedian());
+    char buffer[200];
+    snprintf(buffer, 200, "{\"co2\": %f, \"temp\": %f, \"hum\": %f, \"light\": %f}", co2.getMedian(), temperatur.getMedian(), luftfeuchte.getMedian(), licht.getMedian());
     Serial.print("Publish: ");
     Serial.println(buffer);
-    mqtt_client.publish(mqtt_topic, buffer, true);
+    if (!mqtt_client.publish(mqtt_topic, buffer, true)) {
+      // publish failed, prepare for a new connection
+      mqtt_client.disconnect();
+    }
+    startMillis = millis();
   }
 }
 
